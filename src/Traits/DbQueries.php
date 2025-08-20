@@ -1,11 +1,18 @@
 <?php
 namespace LazarusPhp\LazarusBridge\Traits;
 
+use App\System\Core\Functions;
+use LazarusPhp\LazarusDb\Database\CoreFiles\Database;
 use PDO;
 use PDOException;
 
-trait DbQueries
+class DbQueries extends Database
 {
+
+    public function __construct()
+    {
+        parent::__construct();
+    }
 
     // Non Static properties
     protected $data = [];
@@ -19,6 +26,14 @@ trait DbQueries
     protected static $query = [];
     protected static $table;
     protected static $sql = "";
+
+    protected $isSelected = false;
+
+    protected function setParam($name,$value)
+    {
+        $uid = ":".uniqid($name);
+        $this->param["$uid"] = $value;
+    }
 
     // Bind Params 
      protected function bindParams(): void
@@ -59,18 +74,26 @@ trait DbQueries
     // Save functions.
     protected function save(string $sql = "")
     {
-       $sql = !empty($sql) ? $sql : self::$sql; 
+       $sql = !empty($sql) ? $sql : self::$sql;
+        // Functions::dd($this->param);
       try {
+
+            echo "We WIll save";
             $this->stmt = $this->prepare($sql);
             if (!empty($this->param)) $this->bindParams();
-            $this->beginTransaction();
-            $this->stmt->execute();
-            $this->commit();
-            // $this->unbind();
-            return $this->stmt;
+            
+            if($this->stmt->execute())
+            {
+            if($this->isSelected === true)
+            {
+                $this->stmt->closeCursor();
+                $this->isSelected = false;
+            }
+                return $this->stmt;
+
+            }
         } catch (PDOException $e) {
-            $this->rollback();
-            throw $e->getMessage();
+                  throw $e;
         }
    }
  
