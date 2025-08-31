@@ -42,7 +42,7 @@ public function __construct($table)
 
     parent::__construct();
     // Validate that a table exists
-    $this->hasTable($table);
+    return $this->hasTable($table);
 }
 
 
@@ -74,6 +74,7 @@ protected function hasTable($table="")
             return true;
         } else {
             // Set the has Table flag to false.
+            echo "no Table found";
             self::$hasTable = false;
             // Gebnerate Errors.
             SchemaErrors::generate("Cannot find Table",["reason"=>"Table does not exist"]);
@@ -158,6 +159,7 @@ protected function hasTable($table="")
         return false;
     }
     
+    
     // Return the results
     if($result && $result->rowCount() > 1)
     {
@@ -165,20 +167,121 @@ protected function hasTable($table="")
         $this->data["index"] = $result->fetchAll();
         return true;
     }
-    else
+    elseif($result && $result->rowCount() === 1)
     {
         $this->data["index"] = $result->fetch();
         self::$hasIndex = true;
     }
+    else
+    {
+        return false;
+    }
+    
     }
 
+    public function hasUnique($indexName,$indexValue="")
+    {
+           if(!self::$hasTable)
+        {
+            SchemaErrors::generate("Failed to find Index",["reason"=>"Table Doesnt Exist"]);
+            return false;
+        }
+
+        // Set the Parameters
+        $this->isSelected === true;
+        $indexName = $indexName;
+        $indexValue = $indexValue;
+    $query = "SELECT INDEX_NAME, COLUMN_NAME,NON_UNIQUE";
+    $query .= " FROM INFORMATION_SCHEMA.STATISTICS ";
+     $query .= " WHERE TABLE_SCHEMA = {$this->setParam("db",$_ENV["dbname"])}";
+    $query .= " AND NON_UNIQUE = {$this->setParam("nu",0)}";
+    $query .= " AND TABLE_NAME = {$this->setParam("table",self::$table)}";
+    if(!empty($indexName))
+    {
+    $query .= " AND INDEX_NAME = {$this->setParam("indexName",$indexName)}";
+    }
+    
+    if(!empty($indexValue) && !empty($indexName)){
+    $query .= " AND COLUMN_NAME = {$this->setParam("indexValue",$indexValue)}";
+    }
+
+    $result = $this->save($query);
+    // Check if array index key exists
+    $data = $this->validateArray("index");
+
+    if(!$data)
+    {
+        SchemaErrors::generate("Failed to find Index",["reason"=>"Index Array Could not be created"]);
+        return false;
+    }
+    
+    
+    // Return the results
+    if($result && $result->rowCount() > 1)
+    {
+        self::$hasIndex = true;
+        $this->data["index"] = $result->fetchAll();
+        return true;
+    }
+    elseif($result && $result->rowCount() === 1)
+    {
+        $this->data["index"] = $result->fetch();
+        self::$hasIndex = true;
+    }
+    else
+    {
+        return false;
+    }
+
+    }
 
     // Extract the Data From the data array
-    public function getData(string $type)
+    public function getData()
     {
-            if(isset($this->data[$type])){
-            return (object) $this->data[$type];
-            }
+        if(!isset($this->data))
+        {
+            return false;
+        }
 
+        // Get Data type based on connection made.
+        if(self::$hasTable)
+        {
+            $type = "table";
+        }
+        elseif(self::$hasIndex)
+        {
+            $type = "index";
+        }
+        elseif(self::$hasColumn)
+        {
+            $type = "column";       
+        }
+        elseif(self::$hasForeignKey)
+        {
+            $type = "foreignKey";
+        }
+        elseif(self::$hasUnique)
+        {
+            $type = "unique";
+        }
+        else
+        {
+            $type = null;
+        }
+
+
+        if($type === null)
+        {
+            return (object) $this->data;
+        }
+        else
+        {
+            if(!isset($this->data[$type]))
+            {
+                // Generate Error Here
+                return false;
+            }
+            return (object) $this->data[$type];
+        }
     }
 }
