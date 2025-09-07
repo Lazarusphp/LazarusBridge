@@ -4,20 +4,23 @@ namespace LazarusPhp\LazarusBridge;
 
 use App\System\Core\Functions;
 use LazarusPhp\LazarusDb\Database\CoreFiles\Database;
-use LazarusPhp\LazarusDb\SchemaBuilder\SchemaErrors;
 use PDO;
 use PDOException;
 
 class DbQueries extends Database
 {
 
+    public function __construct()
+    {
+        parent::__construct();
+    }
+
     // Non Static properties
     protected $data = [];
-    protected $isSelected = false;
     protected $name;
+
     // Used with Query Builder and SchemaBuilder to prevent sql Injections.
-    protected static $param = [];
-    // Match Against a set of arrays to support Binding.
+    protected $param = [];
     protected $stmt;
 
     // Static Properties.
@@ -25,38 +28,21 @@ class DbQueries extends Database
     protected static $table;
     protected static $sql = "";
 
-    public function __construct()
+    protected $isSelected = false;
+
+    protected function setParam($name,$value)
     {
-        self::$table = "";
-        parent::__construct();
+        $uid = ":".uniqid($name);
+        $this->param["$uid"] = $value;
+        return $uid;
     }
 
-    protected function setParam($name, $value)
+    // Bind Params 
+     protected function bindParams(): void
     {
-        $id = uniqid(":" . $name . "_");
-        self::$param[$id] = $value;
-        return $id;
-    }
-
-    protected function validateArray(string $name): array
-    {
-        if(!is_array($this->data))
-        {
-            $this->data = [];
-        }
-
-        if(!in_array($name,$this->data) && !isset($this->data[$name]))
-        {
-            $this->data[] = $name; 
-        }
-        return $this->data;
-     }
-
-    protected function bindParams(): void
-    {
-        if (!empty(self::$param)) {
+        if (!empty($this->param)) {
             // Prepare code
-            foreach (self::$param as $key => $value) {
+            foreach ($this->param as $key => $value) {
                 $type = $this->getParamType($value);
                 $this->stmt->bindValue($key, $value, $type);
             }
@@ -80,30 +66,29 @@ class DbQueries extends Database
         }
     }
 
-    // Unbind
-    private function unbind()
-    {
-        self::$param = [];
-    }
-
-
-    // Save functions.
     protected function save(string $sql = "")
     {
-        $sql = !empty($sql) ? $sql : self::$sql;
-        try {
+       $sql = !empty($sql) ? $sql : self::$sql;
+        // Functions::dd($this->param);
+      try {
+
             $this->stmt = $this->prepare($sql);
-            if (!empty(self::$param) && count(self::$param)) $this->bindParams();
-            $this->stmt->execute();
-
-            if ($this->isSelected === true) {
+            
+            // Bind Params
+            $this->bindParams();
+            
+            if($this->stmt->execute())
+            {
+            if($this->isSelected === true)
+            {
                 $this->stmt->closeCursor();
+                $this->isSelected = false;
             }
-            $this->unbind();
-
-            return $this->stmt;
+                unset($this->param);
+                return $this->stmt;
+            }
         } catch (PDOException $e) {
-            SchemaErrors::generate("Cannot Write Schema", ["reason" => $e->getMessage()]);
+                  throw $e;
         }
-    }
+   }
 }
