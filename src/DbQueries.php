@@ -4,6 +4,7 @@ namespace LazarusPhp\LazarusBridge;
 
 use App\System\Core\Functions;
 use LazarusPhp\LazarusDb\Database\CoreFiles\Database;
+use LazarusPhp\SchemaBuilder\Schema;
 use PDO;
 use PDOException;
 
@@ -13,11 +14,16 @@ class DbQueries extends Database
     public function __construct()
     {
         parent::__construct();
+        
     }
+
 
     // Non Static properties
     protected $data = [];
     protected $name;
+    protected $isGrouped = false;
+
+    protected static $validator;
 
     // Used with Query Builder and SchemaBuilder to prevent sql Injections.
     protected $param = [];
@@ -30,11 +36,25 @@ class DbQueries extends Database
 
     protected $isSelected = false;
 
-    protected function setParam($name,$value)
+protected function validateArray(string $name): array
+    {
+        if(!is_array($this->data))
+        {
+            $this->data = [];
+        }
+
+        if(!in_array($name,$this->data) && !isset($this->data[$name]))
+        {
+            $this->data[] = $name; 
+        }
+        return $this->data;
+     }
+
+    protected function setParam($name,$value,$dev=false)
     {
         $uid = ":".uniqid($name);
         $this->param["$uid"] = $value;
-        return $uid;
+        return ($dev===false) ? $uid : $this->param[$uid];
     }
 
     // Bind Params 
@@ -68,6 +88,7 @@ class DbQueries extends Database
 
     protected function save(string $sql = "")
     {
+        $this->stmt = "";
        $sql = !empty($sql) ? $sql : self::$sql;
         // Functions::dd($this->param);
       try {

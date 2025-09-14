@@ -3,24 +3,12 @@
 namespace LazarusPhp\LazarusBridge;
 
 use App\System\Core\Functions;
-use LazarusPhp\LazarusDb\Database\CoreFiles\Database;
-use LazarusPhp\LazarusDb\SchemaBuilder\CoreFiles\SchemaCore;
 use LazarusPhp\LazarusBridge\DbQueries;
-use LazarusPhp\LazarusDb\SchemaBuilder\Schema;
 use LazarusPhp\LazarusDb\SchemaBuilder\SchemaErrors;
 use PDO;
 
 class SchemaValidator extends DbQueries
 {
-
-    // Generate a Tablename
-
-    protected $rows;
-    private $column;
-    protected $errors = [];
-
-    protected $data = [];
-    protected static $tableData =[];
 
     // Flags
     protected static $hasTable = false;
@@ -31,18 +19,12 @@ class SchemaValidator extends DbQueries
 
 
 
-public function __construct($table)
+public function __construct()
 {
-
-    // Create new array if value isnt set on load.
-    if(!isset(self::$tableData))
-    {
-        self::$tableData = [];
-    }
-
     parent::__construct();
+    // self::$table = $table;
+
     // Validate that a table exists
-    return $this->hasTable($table);
 }
 
 
@@ -50,35 +32,25 @@ public function __construct($table)
 // this method can stay private only needed when the constructor is called
 // use getDate("table") method to pull column data
 
-protected function hasTable($table="")
+public function hasTable($table="")
 {
-        self::$table = (!empty($table)) ? $table : self::$table;
+
+    $table = !empty($table) ? $table : TABLE;
 
         $this-> isSelected === true;
         $query = "SELECT COUNT(*)";
         $query .= " FROM INFORMATION_SCHEMA.TABLES";
         $query .= " WHERE TABLE_SCHEMA={$this->setParam("db",$_ENV["dbname"])}";
-        $query .= " AND TABLE_NAME =  {$this->setParam("table",self::$table)}";
+        $query .= " AND TABLE_NAME =  {$this->setParam("table",$table)}";
         $query .= " LIMIT {$this->setParam("limit",1)}";
-        $result = $this->save($query);
-        if ($result && $result->fetchColumn() >= 1) {
 
-            // Set has table flag to true;
-            self::$hasTable = true;
-                // Set static table name.
-            if(!self::$table){
-                self::$table = $table;
-            }
-            $this->data["table"] = "table found";
+        $result = $this->save($query);
+
+        if ($result && $result->fetchColumn() === 1) {
             // Return result
+            self::$hasTable = true;
             return true;
         } else {
-            // Set the has Table flag to false.
-            echo "no Table found";
-            self::$hasTable = false;
-            // Gebnerate Errors.
-            SchemaErrors::generate("Cannot find Table",["reason"=>"Table does not exist"]);
-            // Return false.
             return false;
         }
     }
@@ -93,7 +65,7 @@ protected function hasTable($table="")
         $query = "SELECT *";
         $query .= " FROM INFORMATION_SCHEMA.COLUMNS";
         $query .= " WHERE TABLE_SCHEMA = ".$this->setParam("db",$_ENV["dbname"])."";
-        $query .= " AND TABLE_NAME = ".$this->setParam("table",self::$table)."";
+        $query .= " AND TABLE_NAME = ".$this->setParam("table",TABLE)."";
         $query .= " AND COLUMN_NAME = ".$this->setParam("column",$column)."";
 
         $result = $this->save($query);
@@ -117,7 +89,6 @@ protected function hasTable($table="")
         else
         {
             self::$hasColumn = false;
-            SchemaErrors::generate("Cannot find Column",["reason"=>"Column does not exist"]);
             return false;
         }
     }
@@ -235,53 +206,58 @@ protected function hasTable($table="")
 
     }
 
+    public function hasForeignKey($name="")
+    {
+        
+    $query =  "SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, CONSTRAINT_NAME ";
+    $query .= "FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE ";
+    $query .= "WHERE REFERENCED_TABLE_SCHEMA IS NOT NULL ";
+ 
+    if(!empty($name))
+    {
+        $param = $this->setParam("name",$name);
+        $param2 = $this->setParam("name",$name);
+        $query .= " AND CONSTRAINT_NAME = {$param} ";
+        $query .= " OR COLUMN_NAME = $param2 ";
+    }
+              
+        $result = $this->save($query);
+
+        $data = $this->validateArray("fk");
+
+        if(!$data)
+        {
+            SchemaErrors::generate("Failed to find foreign key",["reason"=>"fk Array Could not be created"]);
+            return false;
+        }
+
+        if($result && empty($name) &&  $result->rowCount() >= 1)
+        {
+            $this->data["fk"] = $result->fetchAll();
+            return true;
+        }
+        elseif($result && !empty($name) && $result->rowCount() === 1)
+        {
+            $this->data["fk"] = $result->fetch();
+            return true;
+        }
+        else{
+            return false;
+        }
+    }
+
     // Extract the Data From the data array
-    public function getData()
+    public function getData($type)
     {
         if(!isset($this->data))
         {
             return false;
         }
 
-        // Get Data type based on connection made.
-        if(self::$hasTable)
+        if(isset($this->data[$type]))
         {
-            $type = "table";
-        }
-        elseif(self::$hasIndex)
-        {
-            $type = "index";
-        }
-        elseif(self::$hasColumn)
-        {
-            $type = "column";       
-        }
-        elseif(self::$hasForeignKey)
-        {
-            $type = "foreignKey";
-        }
-        elseif(self::$hasUnique)
-        {
-            $type = "unique";
-        }
-        else
-        {
-            $type = null;
-        }
-
-
-        if($type === null)
-        {
-            return (object) $this->data;
-        }
-        else
-        {
-            if(!isset($this->data[$type]))
-            {
-                // Generate Error Here
-                return false;
-            }
-            return (object) $this->data[$type];
+            return $this->data[$type];
         }
     }
+
 }
